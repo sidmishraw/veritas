@@ -17,8 +17,7 @@ ofVec3f convert(const Vector3 &p) { return ofVec3f(p.x(), p.y(), p.z()); }
 // Checks if a point p is within the bounds defined by min and max.
 //
 bool isWithinBounds(Vector3 min, Vector3 max, ofVec3f p) {
-  if ((p.x >= min.x() && p.x <= max.x()) &&
-      (p.y >= min.y() && p.y <= max.y()) && (p.z >= min.z() && p.z <= max.z()))
+  if ((p.x >= min.x() && p.x <= max.x()) && (p.y >= min.y() && p.y <= max.y()) && (p.z >= min.z() && p.z <= max.z()))
     return true;
 
   return false;
@@ -62,8 +61,7 @@ vector<Vector3> meshBounds(const ofMesh &mesh) {
 //--------------- OCTTREENODE - STARTS -----------------------------------------
 //
 //
-OctTreeNode::OctTreeNode(Vector3 min, Vector3 max, int d,
-                         weak_ptr<OctTree> tree, vector<int> indices) {
+OctTreeNode::OctTreeNode(Vector3 min, Vector3 max, int d, weak_ptr<OctTree> tree, vector<int> indices) {
   box = Box(min, max);
   isLeaf = false;
   depth = d;
@@ -113,20 +111,15 @@ void OctTreeNode::subdivide() {
   // Generate children
   //
   shared_ptr<OctTreeNode> n[8];
-  n[0] = make_shared<OctTreeNode>(min, center, depth + 1, octTree,
-                                  this->pointIndices);
-  n[1] = make_shared<OctTreeNode>(n[0]->box.min() + Vector3(xDist, 0, 0),
-                                  n[0]->box.max() + Vector3(xDist, 0, 0),
+  n[0] = make_shared<OctTreeNode>(min, center, depth + 1, octTree, this->pointIndices);
+  n[1] = make_shared<OctTreeNode>(n[0]->box.min() + Vector3(xDist, 0, 0), n[0]->box.max() + Vector3(xDist, 0, 0),
                                   depth + 1, octTree, this->pointIndices);
-  n[2] = make_shared<OctTreeNode>(n[1]->box.min() + Vector3(0, 0, zDist),
-                                  n[1]->box.max() + Vector3(0, 0, zDist),
+  n[2] = make_shared<OctTreeNode>(n[1]->box.min() + Vector3(0, 0, zDist), n[1]->box.max() + Vector3(0, 0, zDist),
                                   depth + 1, octTree, this->pointIndices);
-  n[3] = make_shared<OctTreeNode>(n[2]->box.min() + Vector3(-xDist, 0, 0),
-                                  n[2]->box.max() + Vector3(-xDist, 0, 0),
+  n[3] = make_shared<OctTreeNode>(n[2]->box.min() + Vector3(-xDist, 0, 0), n[2]->box.max() + Vector3(-xDist, 0, 0),
                                   depth + 1, octTree, this->pointIndices);
   for (int i = 4; i < 8; i++) {
-    n[i] = make_shared<OctTreeNode>(n[i - 4]->box.min() + h,
-                                    n[i - 4]->box.max() + h, depth + 1, octTree,
+    n[i] = make_shared<OctTreeNode>(n[i - 4]->box.min() + h, n[i - 4]->box.max() + h, depth + 1, octTree,
                                     this->pointIndices);
   }
 
@@ -134,10 +127,11 @@ void OctTreeNode::subdivide() {
 
   // cout << "my children = " << children.size() << endl;
 
-  for_each(children.begin(), children.end(),
-           [](shared_ptr<OctTreeNode> child) { child->subdivide(); });
+  for_each(children.begin(), children.end(), [](shared_ptr<OctTreeNode> child) { child->subdivide(); });
 }
 
+// render the octree node as a box
+//
 void OctTreeNode::render() {
   if (depth > octTree->MAX_DEPTH) return;  // bail out after reaching max depth.
   if (pointIndices.size() < 1) return;     // don't render empty nodes
@@ -165,38 +159,39 @@ void OctTreeNode::render() {
 
   // Render children recursively.
   //
-  for_each(children.begin(), children.end(),
-           [](shared_ptr<OctTreeNode> child) { child->render(); });
+  for_each(children.begin(), children.end(), [](shared_ptr<OctTreeNode> child) { child->render(); });
 }
 
-MaybePoint OctTreeNode::intersects(const Ray &r, float t0, float t1) {
-  MaybePoint sPoint;
-
+// Check if the ray intersects a node. If it intersects,
+// do deeper in the hierarchy till we reach the leaf node with just 1 vertex.
+// Then, we return the vertex in the leaf node.
+// Else, we return an empty maybepoint object.
+//
+void OctTreeNode::intersects(const Ray &r, float t0, float t1) {
   shouldLightUp = box.intersect(r, t0, t1);
 
   // Sparse box, don't light up
   //
-  if (pointIndices.size() < 1) {
+  if (pointIndices.size() < 1)
     shouldLightUp = false;
-  } else if (shouldLightUp) {
+  else if (shouldLightUp) {
     if (isLeaf) {
-      octTree->thePoint = octTree->mesh.getVertex(pointIndices[0]);
-      sPoint.set(octTree->thePoint);
+      octTree->thePoint.set(octTree->mesh.getVertex(pointIndices[0]));
+
+      cout << " ------ " << endl;
+      cout << "Nbr of indices = " << pointIndices.size() << endl;
+      cout << "Tree point selected = " << octTree->thePoint.get() << endl;
+      cout << " ------ " << endl;
     } else {
       for_each(children.begin(), children.end(),
-               [&r, t0, t1](shared_ptr<OctTreeNode> child) {
-                 child->intersects(r, t0, t1);
-               });
+               [&r, t0, t1](shared_ptr<OctTreeNode> child) { child->intersects(r, t0, t1); });
     }
   }
-
-  return sPoint;
 }
 
 void OctTreeNode::clearSelection() {
   shouldLightUp = false;
-  for_each(children.begin(), children.end(),
-           [](shared_ptr<OctTreeNode> child) { child->clearSelection(); });
+  for_each(children.begin(), children.end(), [](shared_ptr<OctTreeNode> child) { child->clearSelection(); });
 }
 
 //
@@ -215,8 +210,7 @@ void OctTree::generate(const ofMesh &mesh, int maxLevel) {
   for (int i = 0; i < mesh.getVertices().size(); i++) indices.push_back(i);
 
   vector<Vector3> bounds = meshBounds(mesh);
-  root = make_shared<OctTreeNode>(bounds[0], bounds[1], 0, shared_from_this(),
-                                  indices);
+  root = make_shared<OctTreeNode>(bounds[0], bounds[1], 0, shared_from_this(), indices);
   root->subdivide();
 }
 
@@ -224,19 +218,23 @@ void OctTree::render() {
   root->render();
 
   ofSetColor(ofColor::cyan);
-  ofDrawSphere(thePoint, 0.25);
+  ofDrawSphere(thePoint.get(), 0.25);
 }
 
-Vector3 OctTree::search(const Ray &r, float t0, float t1) {
+shared_ptr<MaybePoint> OctTree::search(const Ray &r, float t0, float t1) {
   root->clearSelection();
-  MaybePoint mp = root->intersects(r, t0, t1);
+  thePoint.clear();
 
-  if (mp.isPresent()) {
-    auto p = mp.get();
-    return Vector3(p.x, p.y, p.z);
+  root->intersects(r, t0, t1);
+
+  auto p = make_shared<MaybePoint>();
+
+  if (thePoint.isPresent()) {
+    cout << "Found point -- " << thePoint.get() << endl;
+    p->set(thePoint.get());
   }
 
-  return Vector3(0, 0, 0);
+  return p;
 }
 
 //

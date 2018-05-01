@@ -10,9 +10,8 @@ using namespace std;
 // test if a ray intersects a plane.  If there is an intersection,
 // return true and put point of intersection in "point"
 //
-bool rayIntersectPlane(const ofVec3f &rayPoint, const ofVec3f &raydir,
-                       const ofVec3f &planePoint, const ofVec3f &planeNorm,
-                       ofVec3f &point) {
+bool rayIntersectPlane(const ofVec3f &rayPoint, const ofVec3f &raydir, const ofVec3f &planePoint,
+                       const ofVec3f &planeNorm, ofVec3f &point) {
   // if d1 is 0, then the ray is on the plane or there is no intersection
   //
   const float eps = .000000001;
@@ -33,9 +32,7 @@ bool rayIntersectPlane(const ofVec3f &rayPoint, const ofVec3f &raydir,
 // Compute the reflection of a vector incident on a surface at the normal.
 //
 //
-ofVec3f reflectVector(const ofVec3f &v, const ofVec3f &n) {
-  return (v - 2 * v.dot(n) * n);
-}
+ofVec3f reflectVector(const ofVec3f &v, const ofVec3f &n) { return (v - 2 * v.dot(n) * n); }
 
 // Added by sidmishraw -----
 // Minimizes the vectors passed in and returns the vector with the minimum
@@ -44,8 +41,7 @@ ofVec3f reflectVector(const ofVec3f &v, const ofVec3f &n) {
 // the minimized vector would be (1, 0, 0).
 //
 Vector3 minimize(const Vector3 &a, const Vector3 &b) {
-  return Vector3(a.x() <= b.x() ? a.x() : b.x(), a.y() <= b.y() ? a.y() : b.y(),
-                 a.z() <= b.z() ? a.z() : b.z());
+  return Vector3(a.x() <= b.x() ? a.x() : b.x(), a.y() <= b.y() ? a.y() : b.y(), a.z() <= b.z() ? a.z() : b.z());
 }
 
 // Added by sidmishraw -----
@@ -55,8 +51,7 @@ Vector3 minimize(const Vector3 &a, const Vector3 &b) {
 // the maximized vector would be (1, 1, 1).
 //
 Vector3 maximize(const Vector3 &a, const Vector3 &b) {
-  return Vector3(a.x() >= b.x() ? a.x() : b.x(), a.y() >= b.y() ? a.y() : b.y(),
-                 a.z() >= b.z() ? a.z() : b.z());
+  return Vector3(a.x() >= b.x() ? a.x() : b.x(), a.y() >= b.y() ? a.y() : b.y(), a.z() >= b.z() ? a.z() : b.z());
 }
 
 // Added by sidmishraw ----
@@ -103,4 +98,11 @@ Box compose(Box &box1, Box &box2) {
   // auto max = maximize(box1Max, box2Max);
 
   return Box(min, max);
+}
+
+void logBox(Box &box) {
+  cout << "Box --------" << endl;
+  cout << box.min().x() << ", " << box.min().y() << ", " << box.min().z() << endl;
+  cout << box.max().x() << ", " << box.max().y() << ", " << box.max().z() << endl;
+  cout << "------------" << endl;
 }

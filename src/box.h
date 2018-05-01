@@ -19,7 +19,7 @@ class Box {
  public:
   Box() {}
   Box(const Vector3 &min, const Vector3 &max) {
-    assert(min <= max);
+    // assert(min < max);
 
     parameters[0] = min;
     parameters[1] = max;

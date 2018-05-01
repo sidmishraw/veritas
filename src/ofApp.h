@@ -46,8 +46,7 @@ class ofApp : public ofBaseApp {
   Box meshBounds(const ofMesh &);
   void subDivideBox8(const Box &b, vector<Box> &boxList);
 
-  bool mouseIntersectPlane(ofVec3f planePoint, ofVec3f planeNorm,
-                           ofVec3f &point);
+  bool mouseIntersectPlane(ofVec3f planePoint, ofVec3f planeNorm, ofVec3f &point);
 
   // -- added by sidmishraw ---
   // Draws the bounding box around terrain
@@ -59,6 +58,14 @@ class ofApp : public ofBaseApp {
   //
   void drawBoundingBoxR();
 
+  // -- added by sidmishraw --
+  // Checks if the rover was selected with the mouse click by
+  // checking if the ray intersects any of the bounding boxes of the
+  // rover's components or the rover itself.
+  //
+  bool roverSelected(const ofVec3f &mousePoint);
+
+  // -- added by sidmishraw --
   // cams[0] - world camera
   // cams[1] - driver's perspective camera
   // cams[2] - tracking camera
@@ -81,23 +88,37 @@ class ofApp : public ofBaseApp {
 
   bool bWireframe;
   bool bDisplayPoints;
-  bool bPointSelected;
+  bool bPointSelected;  // flag if point selection mode is online
   bool bTerrainSelected;
 
   bool bRoverLoaded;
   bool bRoverSelected;
 
+  // -- added by sidmishraw --
   // This index denotes which camera is selected
   //
   unsigned short int cameraIndex;
 
+  // -- added by sidmishraw --
   // boundingBoxT - bounding box for the terrain
   // boundingBoxR - bounding box for the rover
+  // roverCBBoxes - the list of bounding boxes for each of rover's components
+  //
   Box boundingBoxT, boundingBoxR;
+  vector<Box> roverCBBoxes;
 
+  // -- added by sidmishraw --
   // octtree for the terrain
+  //
   shared_ptr<OctTree> octtreeT;
 
+  // -- added by sidmishraw --
   // for debugging rover
-  vector<Box> boxes;
+  //
+  vector<ofVec3f> pathPoints;
+
+  // -- added by sidmishraw --
+  // The path to animate against.
+  //
+  ofPolyline thePath;
 };

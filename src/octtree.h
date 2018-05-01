@@ -44,6 +44,11 @@ class MaybePoint {
   //
   bool isPresent() { return this->bPresent; }
 
+  // Clears the contents of this maybe container, signifying that
+  // the current value is no longer valid.
+  //
+  void clear() { this->bPresent = false; }
+
   // Returns the point that is present.
   //
   ofVec3f get() { return this->point; }
@@ -71,8 +76,7 @@ class OctTreeNode : public enable_shared_from_this<OctTreeNode> {
   // the octtree that this node belongs to, and
   // the indices of the vertices belonging to it.
   //
-  OctTreeNode(Vector3 min, Vector3 max, int d, weak_ptr<OctTree> tree,
-              vector<int> indices);
+  OctTreeNode(Vector3 min, Vector3 max, int d, weak_ptr<OctTree> tree, vector<int> indices);
 
   // ----------- ATTRIBUTES -----------------
 
@@ -120,7 +124,7 @@ class OctTreeNode : public enable_shared_from_this<OctTreeNode> {
 
   // Checks if the ray r intersects this node.
   //
-  MaybePoint intersects(const Ray& r, float t0, float t1);
+  void intersects(const Ray& r, float t0, float t1);
 
   // Clears the shouldLightUp bit.
   //
@@ -141,7 +145,7 @@ class OctTree : public enable_shared_from_this<OctTree> {
 
   // The point selected and to render as a sphere's center.
   //
-  ofVec3f thePoint;
+  MaybePoint thePoint;
 
   // The mesh for which this octtree is being generated.
   //
@@ -163,7 +167,7 @@ class OctTree : public enable_shared_from_this<OctTree> {
 
   // Searches the point of intersection given the ray.
   //
-  Vector3 search(const Ray& r, float t0, float t1);
+  shared_ptr<MaybePoint> search(const Ray& r, float t0, float t1);
 };
 
 };  // namespace sidmishraw_octtree

@@ -66,16 +66,11 @@ class Vector3 {
     return d[0] * op2.d[0] + d[1] * op2.d[1] + d[2] * op2.d[2];
   }
   Vector3 operator^(const Vector3 &op2) const {  // cross product
-    return Vector3(d[1] * op2.d[2] - d[2] * op2.d[1],
-                   d[2] * op2.d[0] - d[0] * op2.d[2],
+    return Vector3(d[1] * op2.d[2] - d[2] * op2.d[1], d[2] * op2.d[0] - d[0] * op2.d[2],
                    d[0] * op2.d[1] - d[1] * op2.d[0]);
   }
-  bool operator==(const Vector3 &op2) const {
-    return (d[0] == op2.d[0] && d[1] == op2.d[1] && d[2] == op2.d[2]);
-  }
-  bool operator!=(const Vector3 &op2) const {
-    return (d[0] != op2.d[0] || d[1] != op2.d[1] || d[2] != op2.d[2]);
-  }
+  bool operator==(const Vector3 &op2) const { return (d[0] == op2.d[0] && d[1] == op2.d[1] && d[2] == op2.d[2]); }
+  bool operator!=(const Vector3 &op2) const { return (d[0] != op2.d[0] || d[1] != op2.d[1] || d[2] != op2.d[2]); }
 
   bool operator<(const Vector3 &op2) const {
     // added by sidmishraw
@@ -85,9 +80,7 @@ class Vector3 {
 
     return (d[0] < op2.d[0] && d[1] < op2.d[1] && d[2] < op2.d[2]);
   }
-  bool operator<=(const Vector3 &op2) const {
-    return (d[0] <= op2.d[0] && d[1] <= op2.d[1] && d[2] <= op2.d[2]);
-  }
+  bool operator<=(const Vector3 &op2) const { return (d[0] <= op2.d[0] && d[1] <= op2.d[1] && d[2] <= op2.d[2]); }
 
  private:
   float d[3];
