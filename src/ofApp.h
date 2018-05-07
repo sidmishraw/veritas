@@ -3,6 +3,7 @@
 #include "box.h"
 #include "ofMain.h"
 #include "ofxAssimpModelLoader.h"
+#include "ofxGui.h"
 #include "ray.h"
 
 #include "Util.h"
@@ -10,6 +11,17 @@
 
 using namespace sidmishraw_octtree;
 using namespace std;
+
+// The various app modes.
+//
+enum AppMode {
+  NORMAL,                // normal mode
+  POINT_SELECTION_MODE,  // select the point to retarget the camera
+  PATH_CREATION_MODE,    // create the path for the rover to follow
+  PATH_EDIT_MODE,        // edit the path the rover is following
+  ROVER_ANIMATION_MODE   // animate the rover -- move
+};
+
 class ofApp : public ofBaseApp {
  public:
   void setup();
@@ -65,6 +77,19 @@ class ofApp : public ofBaseApp {
   //
   bool roverSelected(const ofVec3f &mousePoint);
 
+  // -- added by sidmishraw
+  // Switches the camera to view from.
+  // (Camera index ranges from 0 - 4)
+  //
+  void switchCamera();
+
+  // -- added by sidmishraw
+  // Update the cameras' position and look at points, and targets
+  //
+  void updateCams();
+
+  // ------ attrs ----------------------
+
   // -- added by sidmishraw --
   // cams[0] - world camera
   // cams[1] - driver's perspective camera
@@ -74,6 +99,20 @@ class ofApp : public ofBaseApp {
   //
   ofEasyCam cams[5];
 
+  // flag denoting if the POV cam has panned
+  //
+  bool bPanned;
+
+  // offsets the follow cam so that it can follow
+  // the rover.
+  //
+  const float OFFSET_FOLLOW_CAM = 10.0f;
+
+  // -- added by sidmishraw --
+  // This index denotes which camera is selected
+  //
+  unsigned short int cameraIndex;
+
   ofxAssimpModelLoader mars, rover;
   ofLight light;
 
@@ -81,7 +120,7 @@ class ofApp : public ofBaseApp {
   ofVec3f intersectPoint;
   const float selectionRange = 4.0;
 
-  // boolean flags
+  // boolean flags -- used for modes
   //
   bool bAltKeyDown;
   bool bCtrlKeyDown;
@@ -94,10 +133,12 @@ class ofApp : public ofBaseApp {
   bool bRoverLoaded;
   bool bRoverSelected;
 
-  // -- added by sidmishraw --
-  // This index denotes which camera is selected
+  // -- added by sidmishraw
+  // Toggle velocity slider
+  bool tglVelSlider;
+
+  // -- added by sidmishraw
   //
-  unsigned short int cameraIndex;
 
   // -- added by sidmishraw --
   // boundingBoxT - bounding box for the terrain
@@ -121,4 +162,70 @@ class ofApp : public ofBaseApp {
   // The path to animate against.
   //
   ofPolyline thePath;
+
+  // --added by sidmishraw
+  // The point where the mouse was clicked, transformed from
+  // screen co-ordinate space to the world co-ordinate space.
+  //
+  ofVec3f mousePoint;
+
+  // --- added by sidmishraw
+  // the index of the next point on the path
+  //
+  unsigned int nextPtIndex;
+
+  // -- added by sidmishraw
+  // the percentage of path completed
+  //
+  float pct;
+
+  // -added by sidmishraw
+  // Gets the next percentage of path completed.
+  //
+  float nextPct();
+  // Gets the prev percentage of path completed.
+  //
+  float prevPct();
+
+  // For debugging --
+  //
+  ofVec3f roverPos;
+
+  // -- added by sidmishraw
+  // Moves the rover on the selected path, starting from the specified
+  // point.
+  //
+  void moveRover();
+
+  // -- added by sidmishraw
+  // Starts playing the animation by moving the rover.
+  //
+  void playAnimation();
+  bool bAnimationOn;
+
+  // -- added by sidmishraw
+  // Velocity magnitude slider.
+  //
+  ofxPanel gui;
+  ofxFloatSlider velSlider;
+
+  // -- added by sidmishraw
+  // Added for deterministic mode of the app.
+  //
+  AppMode mode;
+
+  // -- added by sidmishraw
+  // Selected point index for modifying the path
+  //
+  int selectedPtIndex;
+
+  // -- added by sidmishraw
+  // This flag indicates if the mouse button is held down.
+  //
+  bool bMouseDown;
+
+  // -- added by sidmishraw
+  // Tracks the rover's current heading direction -- angle
+  //
+  float roverHeadingAngle;
 };

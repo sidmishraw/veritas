@@ -178,10 +178,8 @@ void OctTreeNode::intersects(const Ray &r, float t0, float t1) {
     if (isLeaf) {
       octTree->thePoint.set(octTree->mesh.getVertex(pointIndices[0]));
 
-      cout << " ------ " << endl;
-      cout << "Nbr of indices = " << pointIndices.size() << endl;
-      cout << "Tree point selected = " << octTree->thePoint.get() << endl;
-      cout << " ------ " << endl;
+      //      log("-----");
+      //      log("Nbr of indices = " + ofToString(pointIndices.size()));
     } else {
       for_each(children.begin(), children.end(),
                [&r, t0, t1](shared_ptr<OctTreeNode> child) { child->intersects(r, t0, t1); });
@@ -230,7 +228,6 @@ shared_ptr<MaybePoint> OctTree::search(const Ray &r, float t0, float t1) {
   auto p = make_shared<MaybePoint>();
 
   if (thePoint.isPresent()) {
-    cout << "Found point -- " << thePoint.get() << endl;
     p->set(thePoint.get());
   }
 

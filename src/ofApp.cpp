@@ -24,8 +24,10 @@
 
 #include "ofApp.h"
 #include "Util.h"
+#include "ofxGui.h"
 
-#include <chrono>  // for logging time taken for execution.
+#include <algorithm>  // for algorithms
+#include <chrono>     // for logging time taken for execution.
 
 using namespace std;
 using namespace sidmishraw_octtree;
@@ -46,8 +48,6 @@ void setupCameras(ofEasyCam *cams) {
     cams[i].setFov(65.5);
     ofSetVerticalSync(true);
     cams[i].disableMouseInput();
-    ofEnableSmoothing();
-    ofEnableDepthTest();
   }
 }
 
@@ -61,6 +61,15 @@ void ofApp::setup() {
   bAltKeyDown = false;
   bCtrlKeyDown = false;
 
+  // -- added by sidmishraw
+  //
+  bAnimationOn = false;
+  pct = 0;
+  selectedPtIndex = -1;
+  roverHeadingAngle = 0;  // 0 degrees
+
+  tglVelSlider = false;
+
   // -- by default the terrain is deselected and rover is selected
   bTerrainSelected = false;
 
@@ -70,7 +79,9 @@ void ofApp::setup() {
   //	ofSetWindowShape(1024, 768);
 
   // camera setup
+  //
   cameraIndex = 0;  // default camera set to world camera
+  bPanned = false;
 
   setupCameras(cams);
 
@@ -89,15 +100,139 @@ void ofApp::setup() {
   //
   octtreeT = make_shared<OctTree>();
   octtreeT->generate(mars.getMesh(0), MAX_LEVEL);
+
+  // adding GUI slider
+  //
+  gui.setup();
+  gui.add(velSlider.setup("Velocity", 0.1, 1.0, 5.0));
+}
+
+// -- added by sidmishraw
+// Update the cameras
+//
+void ofApp::updateCams() {
+  if (bRoverLoaded) {
+    // Rover's position
+    auto rpos = rover.getPosition();
+
+    // rover's max bound's point - relative to rover
+    // Since the scene max is in Rover's object space
+    // I need to multiply it with the model matrix to bring it
+    // into world space.
+    //
+    auto rmax = rover.getSceneMax() * rover.getModelMatrix();
+
+    // Driver's view
+    // POV of the rover's driver - front
+    //
+    cams[1].setPosition(ofVec3f(rpos.x, rmax.y, rpos.z));
+
+    if (!bPanned) {
+      // look forward
+      cams[1].pan(180);
+      bPanned = true;
+    }
+
+    // Tracking camera
+    // tracks the rover from a fixed point -- highest point of the
+    // terrain's bounding box.
+    //
+    auto trackingPoint = mars.getSceneMax();
+    cams[2].setPosition(trackingPoint);
+    cams[2].lookAt(rpos);     // tracking camera looks at the rover
+    cams[2].setTarget(rpos);  // tracking camera orbits around the rover
+
+    // Follow camera
+    // follows the rover at a fixed
+    //
+    // follow camera following the rover from offset
+    cams[3].setPosition(rpos.x - 3.0, rpos.y + OFFSET_FOLLOW_CAM, rpos.z - 3.0);
+    cams[3].lookAt(rpos);     // always keep looking at the rover
+    cams[3].setTarget(rpos);  // always orbit around the rover
+
+    // Rear view
+    // POV of the rover's driver - rear
+    // By default the camera looks back --
+    //
+    cams[4].setPosition(ofVec3f(rpos.x, rmax.y, rpos.z));
+    cams[4].pan(0);  // always look back -- rear
+  }
+}
+
+// -- added by sidmishraw
+// Move the rover along the path
+//
+void ofApp::moveRover() {
+  if (!bAnimationOn) return;
+  if (nextPtIndex == pathPoints.size()) nextPtIndex = 0;
+
+  // rover's current and next position
+  //
+  auto p = rover.getPosition();                    // current posn
+  auto roverPos = thePath.getPointAtPercent(pct);  // next posn
+
+  // Set the new position of the rover along the path
+  //
+  rover.setPosition(roverPos.x, roverPos.y, roverPos.z);
+
+  auto delta = (p * rover.getModelMatrix().getInverse()).angle(roverPos * rover.getModelMatrix().getInverse());
+  rover.setRotation(rover.getNumRotations(), delta - roverHeadingAngle, 0, 1, 0);
+  cams[1].pan(180 + (delta - roverHeadingAngle));  // rotate in the direction of the rover
+  cams[4].pan(delta - roverHeadingAngle);          // rotate in opp direction of the rover
+
+  roverHeadingAngle = delta;
 }
 
 //--------------------------------------------------------------
 // incrementally update scene (animation)
 //
 void ofApp::update() {
-  if (pathPoints.size() >= 1) {
+  // --- update cameras
+  updateCams();
+
+  if (pathPoints.size() >= 2) {
+    moveRover();
+  }
+
+  if (mode == PATH_CREATION_MODE || mode == PATH_EDIT_MODE) {
+    // -- update the path (curve on surface) made by user
+    //
     thePath.clear();
-    thePath.addVertices(pathPoints);
+    for_each(pathPoints.begin(), pathPoints.end(), [this](ofVec3f pt) { this->thePath.curveTo(pt); });
+  }
+
+  // Update the percantage of path covered
+  //
+  pct = nextPct();
+  // loop back to starting point to restart the animation
+  //
+  if (pct >= 1) {
+    pct = 0;
+  }
+}
+
+// -- added by sidmishraw
+// Gets the next percentage of path completed depending upon the
+// current value of the velocity slider.
+//
+float ofApp::nextPct() { return pct + 0.001f * velSlider; }
+
+// -- added by sidmishraw
+// Gets the prev percentage of path completed depending upon the
+// current value of the velocity slider.
+//
+float ofApp::prevPct() { return pct - 0.001f * velSlider; }
+
+// -- added by sidmishraw
+// Play the rover movement animation.
+//
+void ofApp::playAnimation() {
+  if (pathPoints.size() > 1) {
+    auto strtPt = thePath.getPointAtPercent(0);
+    rover.setPosition(strtPt.x, strtPt.y, strtPt.z);
+    nextPtIndex++;
+  } else {
+    log("Not enough points in the path.", 1);
   }
 }
 
@@ -134,7 +269,7 @@ void ofApp::drawBoundingBoxR() {
     drawBox(boundingBoxR);
     ofPopMatrix();
 
-    // -- draw the rover's components
+    // -- draw the bounding boxes for rover's components
     //
     for_each(roverCBBoxes.begin(), roverCBBoxes.end(), [this, &roverMx](Box box) {
       ofPushMatrix();
@@ -146,26 +281,14 @@ void ofApp::drawBoundingBoxR() {
       ofPopMatrix();
     });
   }
-
-  // For drawing all the bounding boxes of the rover's meshes
-  //
-  //  if (bRoverLoaded) {
-  //    for (int i = 0; i < rover.getMeshCount(); i++) {
-  //      auto mesh = rover.getMesh(i);
-  //      ofPushMatrix();
-  //      ofNoFill();
-  //      ofSetColor(0, 244, 33);
-  //      ofMultMatrix(rover.getModelMatrix());
-  //      ofRotate(-90, 1, 0, 0);  // rotate 180 degrees about X axis
-  //      drawBox(meshBounds(mesh));
-  //      ofPopMatrix();
-  //    }
-  //  }
 }
 
 //--------------------------------------------------------------
 void ofApp::draw() {
   ofBackground(ofColor::black);
+
+  ofEnableSmoothing();  // moved here by sidmishraw for conflicts with ofxGui
+  ofEnableDepthTest();  // moved here by sidmishraw for conflicts with ofxGui
 
   cams[cameraIndex].begin();
 
@@ -219,14 +342,7 @@ void ofApp::draw() {
 
   // highlight selected point (draw sphere around selected point)
   //
-  if (bPointSelected) {
-    ofSetColor(ofColor::blue);
-    ofDrawSphere(selectedPoint, .1);
-
-    //    ofNoFill();
-    //    ofSetColor(ofColor::white);
-    //    octtreeT->render();
-
+  if (mode == PATH_CREATION_MODE || mode == PATH_EDIT_MODE) {
     for_each(pathPoints.begin(), pathPoints.end(), [this](ofVec3f p) {
       ofSetColor(255, 0, 0);
       ofNoFill();
@@ -234,11 +350,52 @@ void ofApp::draw() {
     });
   }
 
+  if (mode == PATH_EDIT_MODE) {
+    ofSetColor(ofColor::cyan);
+    ofNoFill();
+    ofDrawSphere(selectedPoint, 0.25);
+
+    if (selectedPtIndex > -1) {
+      ofSetColor(255, 255, 0);
+      ofNoFill();
+      ofDrawSphere(pathPoints[selectedPtIndex], 0.30);
+    }
+  }
+
   thePath.draw();
+
+  //  for (int i = 0; i < 5; i++) {
+  //    switch (i) {
+  //      case 0:
+  //        ofSetColor(ofColor::green);
+  //        break;
+  //      case 1:
+  //        ofSetColor(ofColor::blue);
+  //        break;
+  //      case 2:
+  //        ofSetColor(ofColor::red);
+  //        break;
+  //      case 3:
+  //        ofSetColor(ofColor::white);
+  //        break;
+  //      case 4:
+  //        ofSetColor(ofColor::yellow);
+  //        break;
+  //    }
+  //
+  //    ofDrawLine(cams[i].getPosition(), cams[i].getTarget().getPosition());
+  //  }
 
   ofPopMatrix();
 
   cams[cameraIndex].end();
+
+  ofDisableSmoothing();  // moved here by sidmishraw for conflicts with ofxGui
+  ofDisableDepthTest();  // moved here by sidmishraw for conflicts with ofxGui
+
+  // -- added by sidmishraw for drawing the slider
+  //
+  if (tglVelSlider) gui.draw();
 }
 
 //
@@ -269,6 +426,61 @@ void ofApp::drawAxis(ofVec3f location) {
 
 void ofApp::keyPressed(int key) {
   switch (key) {
+    case '1': {
+      // camera 0
+      cameraIndex = 0;
+      break;
+    }
+    case '2': {
+      // camera 1
+      cameraIndex = 1;
+      break;
+    }
+    case '3': {
+      // camera 2
+      cameraIndex = 2;
+      break;
+    }
+    case '4': {
+      // camera 2
+      cameraIndex = 3;
+      break;
+    }
+    case '5': {
+      // camera 2
+      cameraIndex = 4;
+      break;
+    }
+    case '`': {
+      // cycle through cameras
+      switchCamera();
+      break;
+    }
+
+    case OF_KEY_UP: {
+      if (bRoverLoaded) {
+        roverPos.x += 0.25;
+        rover.setPosition(roverPos.x, roverPos.y, roverPos.z);
+      }
+      break;
+    }
+
+    case OF_KEY_DOWN: {
+      if (bRoverLoaded) {
+        roverPos.x -= 0.25;
+        rover.setPosition(roverPos.x, roverPos.y, roverPos.z);
+      }
+      break;
+    }
+
+    case 'p': {
+      // play the animation
+      bAnimationOn = !bAnimationOn;
+      log("Right now animation = " + ofToString(bAnimationOn));
+      playAnimation();
+      break;
+    }
+
     case 'C':
     case 'c':
       if (cams[cameraIndex].getMouseInputEnabled())
@@ -283,8 +495,11 @@ void ofApp::keyPressed(int key) {
       break;
 
     case 'H':
-    case 'h':
+    case 'h': {
+      // toggle GUI slider for rover's velocity
+      tglVelSlider = !tglVelSlider;
       break;
+    }
 
     case 'r':
       cams[cameraIndex].reset();
@@ -296,17 +511,17 @@ void ofApp::keyPressed(int key) {
 
     case 'S': {
       // Toggle point selection mode
+      //
+      mode = (mode == PATH_CREATION_MODE) ? NORMAL : PATH_CREATION_MODE;
       bPointSelected = !bPointSelected;
-      if (bPointSelected)
-        cout << "Point Selection Mode initiated!" << endl;
-      else
-        cout << "Point Selection Mode terminated!" << endl;
       break;
     }
 
-    case 't':
+    case 't': {
+      // camera re-target to the selected point
       setCameraTarget();
       break;
+    }
 
     case 'T': {
       // select the terrain
@@ -322,8 +537,13 @@ void ofApp::keyPressed(int key) {
       break;
     }
 
-    case 'u':
+    case 'u': {
+      // Toggle path edit mode
+      //
+      mode = (mode == PATH_EDIT_MODE) ? NORMAL : PATH_EDIT_MODE;
+      selectedPtIndex = -1;  // reset for this session
       break;
+    }
 
     case 'v':
       togglePointsDisplay();
@@ -410,6 +630,9 @@ bool ofApp::roverSelected(const ofVec3f &mousePoint) {
 
 //--------------------------------------------------------------
 void ofApp::mousePressed(int x, int y, int button) {
+  bMouseDown = true;
+  mousePoint = ofVec3f(mouseX, mouseY);  // added by sidmishraw for drawing ray
+
   ofVec3f mouse(mouseX, mouseY);
   ofVec3f rayPoint = cams[cameraIndex].screenToWorld(mouse);
   ofVec3f rayDir = rayPoint - cams[cameraIndex].getPosition();
@@ -419,20 +642,45 @@ void ofApp::mousePressed(int x, int y, int button) {
   if (bRoverLoaded && roverSelected(mouse)) {
     bRoverSelected = true;
     bTerrainSelected = false;
+
+    auto rmx = boundingBoxR.max();
+    auto rmi = boundingBoxR.min();
+    auto c = (rmx - rmi) / 2.0;
+    selectedPoint = ofVec3f(c.x(), c.y(), c.z()) * rover.getModelMatrix();
+    log("Center - rover - bb = " + ofToString(selectedPoint));
+
   } else if (boundingBoxT.intersect(ray, -100, 100)) {
     bTerrainSelected = true;
     bRoverSelected = false;
 
     // --- Points selection for making a path
     //
-    if (bPointSelected) {
-      // point selection mode is active
-      auto maybePt = octtreeT->search(ray, -100, 100);  // fetch the point
-      cout << "Trying pt " << maybePt->get() << endl;
+    if (mode == PATH_CREATION_MODE) {
+      // Adding points to path
+      //
+      auto maybePt = octtreeT->search(ray, -100, 100);  // fetch the point from octtree
       if (maybePt->isPresent()) {
         auto pt = maybePt->get();
-        cout << "Added pt " << pt << endl;
         pathPoints.push_back(pt);
+      }
+    }
+
+    // -- Points selection to edit the path
+    //
+    if (mode == PATH_EDIT_MODE) {
+      // Editing a point on the path
+      //
+      auto maybePt = octtreeT->search(ray, -100, 100);  // fetch the point from octtree
+      if (maybePt->isPresent()) {
+        auto pt = maybePt->get();
+        auto loc = find(pathPoints.begin(), pathPoints.end(), pt);
+
+        if (loc != pathPoints.end()) {
+          selectedPoint = pt;
+          selectedPtIndex = loc - pathPoints.begin();
+          log("Selected pt = " + ofToString(selectedPoint));
+          log("Selected pt index = " + ofToString(selectedPtIndex));
+        }
       }
     }
   } else {
@@ -531,10 +779,38 @@ void ofApp::subDivideBox8(const Box &box, vector<Box> &boxList) {
 }
 
 //--------------------------------------------------------------
-void ofApp::mouseDragged(int x, int y, int button) {}
+void ofApp::mouseDragged(int x, int y, int button) {
+  mousePoint = ofVec3f(mouseX, mouseY);  // added by sidmishraw for drawing ray
+  ofVec3f mouse(mouseX, mouseY);
+  ofVec3f rayPoint = cams[cameraIndex].screenToWorld(mouse);
+  ofVec3f rayDir = rayPoint - cams[cameraIndex].getPosition();
+  rayDir.normalize();
+  Ray ray = Ray(Vector3(rayPoint.x, rayPoint.y, rayPoint.z), Vector3(rayDir.x, rayDir.y, rayDir.z));
+
+  // -- Points selection to edit the path
+  //
+  if (mode == PATH_EDIT_MODE) {
+    // Editing a point on the path
+    //
+    auto maybePt = octtreeT->search(ray, -100, 100);  // fetch the point from octtree
+    if (maybePt->isPresent()) {
+      auto pt = maybePt->get();
+      selectedPoint = pt;
+    }
+  }
+
+  bMouseDown = false;
+}
 
 //--------------------------------------------------------------
-void ofApp::mouseReleased(int x, int y, int button) {}
+void ofApp::mouseReleased(int x, int y, int button) {
+  bMouseDown = false;
+  if (mode == PATH_EDIT_MODE) {
+    if (selectedPtIndex > -1) {
+      pathPoints[selectedPtIndex] = selectedPoint;  // replace with new point
+    }
+  }
+}
 
 //
 //  Select Target Point on Terrain by comparing distance of mouse to
@@ -590,7 +866,7 @@ bool ofApp::doPointSelection() {
 
 // Set the camera to use the selected point as it's new target
 //
-void ofApp::setCameraTarget() {}
+void ofApp::setCameraTarget() { cams[0].setTarget(selectedPoint); }
 
 //--------------------------------------------------------------
 void ofApp::mouseEntered(int x, int y) {}
@@ -636,9 +912,11 @@ void ofApp::initLightingAndMaterials() {
 
 void ofApp::savePicture() {
   ofImage picture;
+
   picture.grabScreen(0, 0, ofGetWidth(), ofGetHeight());
   picture.save("screenshot.png");
-  cout << "picture saved" << endl;
+
+  log("picture saved", 1);
 }
 
 //--------------------------------------------------------------
@@ -655,7 +933,7 @@ void ofApp::dragEvent(ofDragInfo dragInfo) {
     rover.setScale(.25, .25, .25);
     rover.setPosition(point.x, point.y, point.z);
 
-    cout << "Rover position = " << rover.getPosition() << endl;
+    log("Rover position = " + ofToString(rover.getPosition()));
 
     bRoverLoaded = true;
     bRoverSelected = true;
@@ -669,8 +947,9 @@ void ofApp::dragEvent(ofDragInfo dragInfo) {
     for (int i = 0; i < rover.getMeshCount(); i++) {
       roverCBBoxes.push_back(meshBounds(rover.getMesh(i)));
     }
+
   } else {
-    cout << "Error: Can't load model" << dragInfo.files[0] << endl;
+    log("Error: Can't load model" + ofToString(dragInfo.files[0]), 2);
   }
 }
 
@@ -680,4 +959,12 @@ bool ofApp::mouseIntersectPlane(ofVec3f planePoint, ofVec3f planeNorm, ofVec3f &
   ofVec3f rayDir = rayPoint - cams[cameraIndex].getPosition();
   rayDir.normalize();
   return (rayIntersectPlane(rayPoint, rayDir, planePoint, planeNorm, point));
+}
+
+// -- added by sidmishraw
+// Switch the camera to view from.
+//
+void ofApp::switchCamera() {
+  cameraIndex = (cameraIndex + 1) % 5;  // to keep the index
+  log("Viewing through camera #" + ofToString(cameraIndex));
 }

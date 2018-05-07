@@ -106,3 +106,28 @@ void logBox(Box &box) {
   cout << box.max().x() << ", " << box.max().y() << ", " << box.max().z() << endl;
   cout << "------------" << endl;
 }
+
+void log(string msg, short int level) {
+  switch (level) {
+    case 0: {
+      // debug mode
+      msg = "DEBUG :: " + msg;
+      break;
+    }
+    case 1: {
+      // info mode
+      msg = "INFO :: " + msg;
+      break;
+    }
+    case 2: {
+      // error mode
+      msg = "ERROR :: " + msg;
+      break;
+    }
+    default: {
+      msg = "INFO :: " + msg;
+      break;
+    }
+  }
+  cout << msg << endl;
+}

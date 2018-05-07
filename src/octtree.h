@@ -13,6 +13,7 @@
 
 #include "ofMain.h"
 
+#include "Util.h"
 #include "box.h"
 #include "ray.h"
 

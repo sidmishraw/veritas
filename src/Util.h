@@ -24,3 +24,8 @@ Box compose(Box &box1, Box &box2);
 // Logs the bounds of the Box.
 //
 void logBox(Box &box);
+
+// -- added by sidmishraw
+// Logs the message to the console.
+//
+void log(string msg, short int level = 0);
