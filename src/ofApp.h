@@ -9,8 +9,19 @@
 #include "Util.h"
 #include "octtree.h"
 
+#include "Tmnper.hpp"  // for persistence -- by sidmishraw
+
 using namespace sidmishraw_octtree;
 using namespace std;
+
+// TODO
+// 2. Camera retargeting and custom points for starting the animation
+// 3. Test and make the movie
+//
+
+// The file name extension used for saving the path points
+//
+const string FILE_EXT = ".mars";
 
 // The various app modes.
 //
@@ -234,4 +245,23 @@ class ofApp : public ofBaseApp {
   // Keeps track of rotations on the rover
   //
   int rotCount;
+
+  // -- added by sidmishraw
+  // Persistence to disk
+  //
+  // Loads the pathPoints vector from the string
+  //
+  void pathPointsFromString(string str);
+  // Creates the string representation for the pathPoints vector
+  //
+  string pathPointsToString();
+  // Save the path points to a file using the current timestamp
+  //
+  bool savePathToDisk();
+  // Load the contents from disk given the file name
+  //
+  void loadPathFromDisk(string fileName);
+  // Load the rover model from disk
+  //
+  void loadRoverModel(string filePath);
 };

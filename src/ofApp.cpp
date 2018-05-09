@@ -26,8 +26,12 @@
 #include "Util.h"
 #include "ofxGui.h"
 
+#include <time.h>     // for timestamping
 #include <algorithm>  // for algorithms
 #include <chrono>     // for logging time taken for execution.
+#include <iostream>   // for io
+#include <regex>      // for file extension matching
+#include <sstream>    // for string streams and buffers
 
 using namespace std;
 using namespace sidmishraw_octtree;
@@ -126,7 +130,7 @@ void ofApp::updateCams() {
     // Driver's view
     // POV of the rover's driver - front
     //
-    cams[1].setPosition(ofVec3f(rpos.x, rmax.y, rmax.z));
+    cams[1].setPosition(ofVec3f((rmax.x + rmin.x) / 2.0f, rmax.y, (rmax.z + rmin.z) / 2.0f));
 
     // Tracking camera
     // tracks the rover from a fixed point -- highest point of the
@@ -149,7 +153,8 @@ void ofApp::updateCams() {
     // POV of the rover's driver - rear
     // By default the camera looks back --
     //
-    cams[4].setPosition(ofVec3f(rpos.x, rmax.y, rmin.z));
+    //    cams[4].setPosition(ofVec3f(rpos.x, rmax.y, rmin.z));
+    cams[4].setPosition(ofVec3f((rmax.x + rmin.x) / 2.0f, rmax.y, (rmax.z + rmin.z) / 2.0f));
 
     if (!bPanned) {
       cams[1].pan(180);  // look forward
@@ -291,7 +296,7 @@ void ofApp::playAnimation() {
     auto strtPt = thePath.getPointAtPercent(0.0f);
     ofVec3f s(strtPt.x, 0, strtPt.z);  // keeping the start point on the XZ plane, Y is the normal
 
-    log("Initial s = " + ofToString(s));
+    //    log("Initial s = " + ofToString(s));
 
     // Set the rover's position to the start of the path
     //
@@ -467,6 +472,14 @@ void ofApp::draw() {
     }
   }
 
+  if (mode == POINT_SELECTION_MODE) {
+    // The point where the free camera cams[0] will be retargeted to.
+    //
+    ofSetColor(ofColor::limeGreen);
+    ofNoFill();
+    ofDrawSphere(selectedPoint, 0.15);
+  }
+
   thePath.draw();
 
   //  for (int i = 0; i < 5; i++) {
@@ -597,6 +610,13 @@ void ofApp::keyPressed(int key) {
       break;
     }
 
+    case 'P': {
+      // Point selection mode toggle for free camera retarget
+      //
+      mode = (mode == POINT_SELECTION_MODE) ? NORMAL : POINT_SELECTION_MODE;
+      break;
+    }
+
     case 'C':
     case 'c':
       if (cams[cameraIndex].getMouseInputEnabled())
@@ -621,9 +641,11 @@ void ofApp::keyPressed(int key) {
       cams[cameraIndex].reset();
       break;
 
-    case 's':
+    case 's': {
       savePicture();
+      savePathToDisk();
       break;
+    }
 
     case 'S': {
       // Toggle point selection mode
@@ -656,6 +678,22 @@ void ofApp::keyPressed(int key) {
       //
       mode = (mode == PATH_EDIT_MODE) ? NORMAL : PATH_EDIT_MODE;
       selectedPtIndex = -1;  // reset for this session
+      break;
+    }
+
+    case 'd': {
+      // Delete the selected point only if in PATH_EDIT_MODE
+      //
+      if (mode == PATH_EDIT_MODE) {
+        // Delete the selected point
+        //
+        if (selectedPtIndex > -1) {
+          pathPoints.erase(pathPoints.begin() + selectedPtIndex);  // delete the selected index
+          selectedPtIndex = -1;
+        }
+        thePath.clear();
+        for_each(pathPoints.begin(), pathPoints.end(), [this](ofVec3f pt) { this->thePath.curveTo(pt); });
+      }
       break;
     }
 
@@ -759,7 +797,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 
     auto rmx = boundingBoxR.max();
     auto rmi = boundingBoxR.min();
-    auto c = (rmx - rmi) / 2.0;
+    auto c = (rmx + rmi) / 2.0;
     selectedPoint = ofVec3f(c.x(), c.y(), c.z()) * rover.getModelMatrix();
     log("Center - rover - bb = " + ofToString(selectedPoint));
 
@@ -795,6 +833,17 @@ void ofApp::mousePressed(int x, int y, int button) {
           log("Selected pt = " + ofToString(selectedPoint));
           log("Selected pt index = " + ofToString(selectedPtIndex));
         }
+      }
+    }
+
+    if (mode == POINT_SELECTION_MODE) {
+      // Select the point for camera retargetting
+      //
+      auto maybePt = octtreeT->search(ray, -100, 100);  // fetch the point from octtree
+      if (maybePt->isPresent()) {
+        auto pt = maybePt->get();
+        selectedPoint = pt;
+        log("Selected pt for camera retarget = " + ofToString(selectedPoint));
       }
     }
   } else {
@@ -980,7 +1029,21 @@ bool ofApp::doPointSelection() {
 
 // Set the camera to use the selected point as it's new target
 //
-void ofApp::setCameraTarget() { cams[0].setTarget(selectedPoint); }
+void ofApp::setCameraTarget() {
+  if (mode == POINT_SELECTION_MODE) {
+    // If the rover is selected, camera will retarget to the center of the
+    // rover.
+    //
+    if (bRoverSelected) {
+      auto rmx = boundingBoxR.max();
+      auto rmi = boundingBoxR.min();
+      auto c = (rmx + rmi) / 2.0;
+      selectedPoint = ofVec3f(c.x(), c.y(), c.z()) * rover.getModelMatrix();
+      log("Center - rover - bb = " + ofToString(selectedPoint));
+    }
+    cams[0].setTarget(selectedPoint);
+  }
+}
 
 //--------------------------------------------------------------
 void ofApp::mouseEntered(int x, int y) {}
@@ -1039,10 +1102,25 @@ void ofApp::savePicture() {
 // model is dropped in viewport, place origin under cursor
 //
 void ofApp::dragEvent(ofDragInfo dragInfo) {
+  std::for_each(dragInfo.files.begin(), dragInfo.files.end(), [this, &dragInfo](std::string filePath) {
+    if (filePath.length() != 0 && regex_match(filePath, regex(".*PathPoints_.*\\" + FILE_EXT))) {
+      log("Restoring the path from disk!", 1);
+      this->loadPathFromDisk(filePath);
+    } else {
+      log("Loading rover model from disk!", 1);
+      this->loadRoverModel(filePath);
+    }
+  });
+}
+
+// -- added by sidmishraw for persistence
+// Load the rover model from disk
+//
+void ofApp::loadRoverModel(string filePath) {
   ofVec3f point;
   mouseIntersectPlane(ofVec3f(0, 0, 0), cams[cameraIndex].getZAxis(), point);
 
-  if (rover.loadModel(dragInfo.files[0])) {
+  if (rover.loadModel(filePath)) {
     rover.setScaleNormalization(false);
     rover.setScale(.25, .25, .25);
     rover.setPosition(point.x, point.y, point.z);
@@ -1063,7 +1141,7 @@ void ofApp::dragEvent(ofDragInfo dragInfo) {
     }
 
   } else {
-    log("Error: Can't load model" + ofToString(dragInfo.files[0]), 2);
+    log("Error: Can't load model" + ofToString(filePath), 2);
   }
 }
 
@@ -1081,4 +1159,83 @@ bool ofApp::mouseIntersectPlane(ofVec3f planePoint, ofVec3f planeNorm, ofVec3f &
 void ofApp::switchCamera() {
   cameraIndex = (cameraIndex + 1) % 5;  // to keep the index
   log("Viewing through camera #" + ofToString(cameraIndex));
+}
+
+// added by sidmishraw for persistence ---
+// Loads the pathPoints vector from the string
+//
+void ofApp::pathPointsFromString(string str) {
+  stringstream ss(str);
+  string line;
+
+  // Clear the existing path points
+  //
+  pathPoints.clear();
+
+  int i = 0;
+
+  vector<float> coordinates;
+  while (ss >> line) {
+    if (i == 3) {
+      pathPoints.push_back(ofVec3f(coordinates[0], coordinates[1], coordinates[2]));
+      coordinates.clear();
+    }
+    i = i % 3;
+    coordinates.push_back(stof(line));
+    i++;
+  }
+
+  if (coordinates.size() == 3) {
+    pathPoints.push_back(ofVec3f(coordinates[0], coordinates[1], coordinates[2]));
+    coordinates.clear();
+  }
+}
+
+// added by sidmishraw for persistence ---
+// Creates the string representation for the pathPoints vector
+//
+string ofApp::pathPointsToString() {
+  stringstream ss;
+  for_each(pathPoints.begin(), pathPoints.end(),
+           [this, &ss](ofVec3f p) { ss << p.x << " " << p.y << " " << p.z << endl; });
+  return ss.str();
+}
+
+// added by sidmishraw for persistence ---
+// Save the path points to a file using the current timestamp
+//
+bool ofApp::savePathToDisk() {
+  stringstream fname;
+  fname << "PathPoints_";
+
+  auto currentTime = time(NULL);             // get the current local time
+  auto localTime = localtime(&currentTime);  // get the tm structure to extract information
+
+  fname << ofToString(localTime->tm_year + 1900) << "_";  // year starts from 1900
+  fname << ofToString(localTime->tm_mon + 1) << "_";
+  fname << ofToString(localTime->tm_mday) << "_";
+  fname << ofToString(localTime->tm_hour) << "_";
+  fname << ofToString(localTime->tm_min) << "_";
+  fname << ofToString(localTime->tm_sec) << FILE_EXT;
+
+  // Get the path points as a string to persist
+  //
+  auto ps = pathPointsToString();
+  auto fileName = fname.str();
+
+  log("Saving path to disk at " + fileName, 1);
+
+  return Tmnper::saveIntoTmpr(fileName, ps, FILE_EXT);
+}
+
+// added by sidmishraw for persistence ---
+// Load the contents from disk given the file name
+//
+void ofApp::loadPathFromDisk(string fileName) {
+  auto s = Tmnper::loadFromTmpr(fileName, FILE_EXT);
+  pathPointsFromString(s);
+  // -- update the path (curve on surface) made by user
+  //
+  thePath.clear();
+  for_each(pathPoints.begin(), pathPoints.end(), [this](ofVec3f pt) { this->thePath.curveTo(pt); });
 }
