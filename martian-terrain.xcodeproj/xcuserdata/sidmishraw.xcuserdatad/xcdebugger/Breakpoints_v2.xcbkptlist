@@ -26,13 +26,13 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "src/ofApp.cpp"
-            timestampString = "547371638.868753"
+            timestampString = "547542318.986154"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "403"
-            endingLineNumber = "403"
-            landmarkName = "unknown"
-            landmarkType = "0">
+            startingLineNumber = "408"
+            endingLineNumber = "408"
+            landmarkName = "ofApp::draw()"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -42,7 +42,7 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "../../../Downloads/open-frameworks-ui-framework-c++/of_v0.9.8_osx_release/addons/ofxAssimpModelLoader/src/ofxAssimpModelLoader.h"
-            timestampString = "546843035.673118"
+            timestampString = "547512762.027299"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "10"
@@ -58,12 +58,12 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "src/ofApp.cpp"
-            timestampString = "547371638.869813"
+            timestampString = "547542318.987295"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "439"
-            endingLineNumber = "439"
-            landmarkName = "ofApp::keyPressed(int key)"
+            startingLineNumber = "444"
+            endingLineNumber = "444"
+            landmarkName = "ofApp::draw()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

@@ -201,7 +201,6 @@ class ofApp : public ofBaseApp {
   // Starts playing the animation by moving the rover.
   //
   void playAnimation();
-  bool bAnimationOn;
 
   // -- added by sidmishraw
   // Velocity magnitude slider.
@@ -228,4 +227,11 @@ class ofApp : public ofBaseApp {
   // Tracks the rover's current heading direction -- angle
   //
   float roverHeadingAngle;
+
+  // Keeps track of rover's current orientation
+  //
+  ofVec3f roverOrientation;
+  // Keeps track of rotations on the rover
+  //
+  int rotCount;
 };

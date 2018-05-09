@@ -63,10 +63,9 @@ void ofApp::setup() {
 
   // -- added by sidmishraw
   //
-  bAnimationOn = false;
   pct = 0;
   selectedPtIndex = -1;
-  roverHeadingAngle = 0;  // 0 degrees
+  roverHeadingAngle = 0;  // 0 degrees - initially
 
   tglVelSlider = false;
 
@@ -113,6 +112,7 @@ void ofApp::setup() {
 void ofApp::updateCams() {
   if (bRoverLoaded) {
     // Rover's position
+    //
     auto rpos = rover.getPosition();
 
     // rover's max bound's point - relative to rover
@@ -121,17 +121,12 @@ void ofApp::updateCams() {
     // into world space.
     //
     auto rmax = rover.getSceneMax() * rover.getModelMatrix();
+    auto rmin = rover.getSceneMin() * rover.getModelMatrix();
 
     // Driver's view
     // POV of the rover's driver - front
     //
-    cams[1].setPosition(ofVec3f(rpos.x, rmax.y, rpos.z));
-
-    if (!bPanned) {
-      // look forward
-      cams[1].pan(180);
-      bPanned = true;
-    }
+    cams[1].setPosition(ofVec3f(rpos.x, rmax.y, rmax.z));
 
     // Tracking camera
     // tracks the rover from a fixed point -- highest point of the
@@ -144,9 +139,9 @@ void ofApp::updateCams() {
 
     // Follow camera
     // follows the rover at a fixed
-    //
     // follow camera following the rover from offset
-    cams[3].setPosition(rpos.x - 3.0, rpos.y + OFFSET_FOLLOW_CAM, rpos.z - 3.0);
+    //
+    cams[3].setPosition(rpos.x, rpos.y + OFFSET_FOLLOW_CAM, rpos.z);
     cams[3].lookAt(rpos);     // always keep looking at the rover
     cams[3].setTarget(rpos);  // always orbit around the rover
 
@@ -154,8 +149,13 @@ void ofApp::updateCams() {
     // POV of the rover's driver - rear
     // By default the camera looks back --
     //
-    cams[4].setPosition(ofVec3f(rpos.x, rmax.y, rpos.z));
-    cams[4].pan(0);  // always look back -- rear
+    cams[4].setPosition(ofVec3f(rpos.x, rmax.y, rmin.z));
+
+    if (!bPanned) {
+      cams[1].pan(180);  // look forward
+      cams[4].pan(0);    // always look back -- rear
+      bPanned = true;
+    }
   }
 }
 
@@ -163,24 +163,59 @@ void ofApp::updateCams() {
 // Move the rover along the path
 //
 void ofApp::moveRover() {
-  if (!bAnimationOn) return;
+  // Rover animation mode
+  //
+  if (mode != ROVER_ANIMATION_MODE || pct >= 1) return;
   if (nextPtIndex == pathPoints.size()) nextPtIndex = 0;
 
   // rover's current and next position
   //
-  auto p = rover.getPosition();                    // current posn
+  auto p = rover.getPosition();  // current posn
+  ofVec3f s(p.x, 0, p.z);        // get the projection on XZ plane
+
   auto roverPos = thePath.getPointAtPercent(pct);  // next posn
+  ofVec3f n(roverPos.x, 0, roverPos.z);            // get the projection on XZ plane
+
+  // -- didn't work as expected -- need to position the
+  // cameras in the middle
+  // POV - front and rear camera
+  //
+  //  cams[1].setTarget(thePath.getPointAtPercent(2 * nextPct()));
+  //  cams[1].lookAt(thePath.getPointAtPercent(2 * nextPct()), ofVec3f(0, 1, 0));
+  //  cams[4].setTarget(thePath.getPointAtPercent(2 * prevPct()));
+  //  cams[4].lookAt(thePath.getPointAtPercent(2 * prevPct()), ofVec3f(0, 1, 0));
+
+  nextPtIndex++;  // may not be needed -- NOTE
 
   // Set the new position of the rover along the path
   //
   rover.setPosition(roverPos.x, roverPos.y, roverPos.z);
 
-  auto delta = (p * rover.getModelMatrix().getInverse()).angle(roverPos * rover.getModelMatrix().getInverse());
-  rover.setRotation(rover.getNumRotations(), delta - roverHeadingAngle, 0, 1, 0);
-  cams[1].pan(180 + (delta - roverHeadingAngle));  // rotate in the direction of the rover
-  cams[4].pan(delta - roverHeadingAngle);          // rotate in opp direction of the rover
+  // compute the direction of motion
+  //
+  auto dirn = (n - s).normalize();            // the path heading vector
+  auto c = roverOrientation;                  // find the cross product
+  c.cross(dirn);                              // get the normal (cross-product)
+  auto theta = roverOrientation.angle(dirn);  // get the rotation angle
 
-  roverHeadingAngle = delta;
+  theta = c.y > 0 ? theta : -theta;  // sign depending upon the cross product
+
+  if (isnan(theta)) return;
+
+  // rotate the rover -- initial
+  //
+  rover.setRotation(rotCount, theta, 0, 1, 0);
+  rotCount++;
+
+  // pan the cameras along the Y axis
+  //
+  cams[1].pan(theta);
+  cams[4].pan(theta);
+
+  // rotations
+  //
+  roverHeadingAngle = theta;
+  roverOrientation = dirn;
 }
 
 //--------------------------------------------------------------
@@ -194,6 +229,8 @@ void ofApp::update() {
     moveRover();
   }
 
+  //  log("Rover's position " + ofToString(rover.getPosition()));
+
   if (mode == PATH_CREATION_MODE || mode == PATH_EDIT_MODE) {
     // -- update the path (curve on surface) made by user
     //
@@ -204,11 +241,15 @@ void ofApp::update() {
   // Update the percantage of path covered
   //
   pct = nextPct();
+
   // loop back to starting point to restart the animation
   //
-  if (pct >= 1) {
-    pct = 0;
-  }
+  //  if (pct >= 1) {
+  //    pct = 0;
+  //    nextPtIndex = 1;
+  //    roverHeadingAngle = 0;
+  //    roverOrientation = ofVec3f(0, 0, 1);  // +ve Z axis
+  //  }
 }
 
 // -- added by sidmishraw
@@ -227,10 +268,63 @@ float ofApp::prevPct() { return pct - 0.001f * velSlider; }
 // Play the rover movement animation.
 //
 void ofApp::playAnimation() {
+  // reset the rover's history
+  //
+  pct = 0;
+  nextPtIndex = 1;
+  roverHeadingAngle = 0;
+  roverOrientation = ofVec3f(0, 0, -1);  // positive Z axis - blue color line
+  rover.resetAllAnimations();
+  rotCount = 0;     // reset the rotation count
+  bPanned = false;  // reset the panning to make the front cam look forward
+
+  cams[1].reset();
+  cams[4].reset();
+
+  // reset all the rotations on the rover before next loop
+  //
+  for (int i = 0; i < rover.getNumRotations(); i++) {
+    rover.setRotation(i, 0, 0, 1, 0);
+  }
+
   if (pathPoints.size() > 1) {
-    auto strtPt = thePath.getPointAtPercent(0);
+    auto strtPt = thePath.getPointAtPercent(0.0f);
+    ofVec3f s(strtPt.x, 0, strtPt.z);  // keeping the start point on the XZ plane, Y is the normal
+
+    log("Initial s = " + ofToString(s));
+
+    // Set the rover's position to the start of the path
+    //
     rover.setPosition(strtPt.x, strtPt.y, strtPt.z);
-    nextPtIndex++;
+
+    // -- added by sidmishraw
+    // To rotate the rover along the Y axis
+    // I'll only consider the cooridinates of the X and Z axes when computing
+    // the angle of rotation.
+    //
+    auto nxtPt = thePath.getPointAtPercent(nextPct());  // next point to compute the alignment
+    ofVec3f n(nxtPt.x, 0, nxtPt.z);                     // keeping the point on the XZ plane, Y axis is the normal
+
+    // Compute the new orientation of the rover
+    //
+    auto dirn = (n - s).normalize();            // the path heading vector
+    auto c = roverOrientation;                  // find the cross product
+    c.cross(dirn);                              // get the normal (cross-product)
+    auto theta = roverOrientation.angle(dirn);  // get the rotation angle
+
+    theta = c.y > 0 ? theta : -theta;  // sign depending upon the cross product
+
+    if (isnan(theta)) return;
+
+    // rotate the rover -- initial
+    //
+    rover.setRotation(rotCount, theta, 0, 1, 0);
+    rotCount++;
+
+    // history of rover's orientation and angle
+    //
+    roverHeadingAngle = theta;
+    roverOrientation = dirn;
   } else {
     log("Not enough points in the path.", 1);
   }
@@ -351,10 +445,21 @@ void ofApp::draw() {
   }
 
   if (mode == PATH_EDIT_MODE) {
+    // The dragged point
+    //
     ofSetColor(ofColor::cyan);
     ofNoFill();
     ofDrawSphere(selectedPoint, 0.25);
 
+    // Show the co-ordinates of the point being dragged
+    //
+    ofPushMatrix();
+    ofSetColor(255, 255, 255);
+    ofDrawBitmapString(ofToString(selectedPoint), selectedPoint);
+    ofPopMatrix();
+
+    // The point being edited is yellow in color
+    //
     if (selectedPtIndex > -1) {
       ofSetColor(255, 255, 0);
       ofNoFill();
@@ -385,6 +490,17 @@ void ofApp::draw() {
   //
   //    ofDrawLine(cams[i].getPosition(), cams[i].getTarget().getPosition());
   //  }
+
+  // Draw the co-ordinates of the point in the view port
+  //
+  if (tglVelSlider) {
+    for (int i = 0; i < pathPoints.size(); i++) {
+      ofPushMatrix();
+      ofSetColor(255, 255, 255);
+      ofDrawBitmapString(ofToString(pathPoints[i]), pathPoints[i]);
+      ofPopMatrix();
+    }
+  }
 
   ofPopMatrix();
 
@@ -474,9 +590,9 @@ void ofApp::keyPressed(int key) {
     }
 
     case 'p': {
-      // play the animation
-      bAnimationOn = !bAnimationOn;
-      log("Right now animation = " + ofToString(bAnimationOn));
+      // toggle the rover animation
+      //
+      mode = (mode == ROVER_ANIMATION_MODE) ? NORMAL : ROVER_ANIMATION_MODE;
       playAnimation();
       break;
     }
@@ -525,15 +641,13 @@ void ofApp::keyPressed(int key) {
 
     case 'T': {
       // select the terrain
-      bRoverSelected = false;
-      bTerrainSelected = true;
+      bTerrainSelected = !bTerrainSelected;
       break;
     }
 
     case 'R': {
       // select the rover and deselect the terrain
-      bRoverSelected = true;
-      bTerrainSelected = false;
+      bRoverSelected = !bRoverSelected;
       break;
     }
 
