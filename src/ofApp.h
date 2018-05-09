@@ -14,11 +14,6 @@
 using namespace sidmishraw_octtree;
 using namespace std;
 
-// TODO
-// 2. Camera retargeting and custom points for starting the animation
-// 3. Test and make the movie
-//
-
 // The file name extension used for saving the path points
 //
 const string FILE_EXT = ".mars";
@@ -26,11 +21,12 @@ const string FILE_EXT = ".mars";
 // The various app modes.
 //
 enum AppMode {
-  NORMAL,                // normal mode
-  POINT_SELECTION_MODE,  // select the point to retarget the camera
-  PATH_CREATION_MODE,    // create the path for the rover to follow
-  PATH_EDIT_MODE,        // edit the path the rover is following
-  ROVER_ANIMATION_MODE   // animate the rover -- move
+  NORMAL,                         // normal mode
+  POINT_SELECTION_MODE,           // select the point to retarget the camera
+  PATH_CREATION_MODE,             // create the path for the rover to follow
+  PATH_EDIT_MODE,                 // edit the path the rover is following
+  ROVER_ANIMATION_MODE,           // animate the rover -- move
+  ANIMATION_BEGIN_SELECTION_MODE  // select the starting point for the animation
 };
 
 class ofApp : public ofBaseApp {
@@ -117,7 +113,7 @@ class ofApp : public ofBaseApp {
   // offsets the follow cam so that it can follow
   // the rover.
   //
-  const float OFFSET_FOLLOW_CAM = 10.0f;
+  const float OFFSET_FOLLOW_CAM = 6.0f;
 
   // -- added by sidmishraw --
   // This index denotes which camera is selected
@@ -245,6 +241,11 @@ class ofApp : public ofBaseApp {
   // Keeps track of rotations on the rover
   //
   int rotCount;
+
+  // Animation related startpoint and index
+  //
+  ofVec3f aniStartPt;
+  int aniSelectedIndex;
 
   // -- added by sidmishraw
   // Persistence to disk

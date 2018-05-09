@@ -20,7 +20,7 @@
 //  Have Fun !!
 //
 //  Student Name:   Sidharth Mishra <sidmishraw@gmail.com>
-//  Date:           April 18, 2018
+//  Date:           May 9, 2018
 
 #include "ofApp.h"
 #include "Util.h"
@@ -70,6 +70,7 @@ void ofApp::setup() {
   pct = 0;
   selectedPtIndex = -1;
   roverHeadingAngle = 0;  // 0 degrees - initially
+  aniSelectedIndex = -1;  // initially the selected index is -1, so we start from beginning of the path
 
   tglVelSlider = false;
 
@@ -293,7 +294,14 @@ void ofApp::playAnimation() {
   }
 
   if (pathPoints.size() > 1) {
-    auto strtPt = thePath.getPointAtPercent(0.0f);
+    auto startPct = (aniSelectedIndex < 0) ? 0.0f : ((1.0 / pathPoints.size()) * aniSelectedIndex);
+    pct = startPct;
+
+    log("Start % = " + ofToString(startPct), 1);
+
+    auto strtPt = thePath.getPointAtPercent(startPct);
+    log("Start pt = " + ofToString(strtPt), 1);
+
     ofVec3f s(strtPt.x, 0, strtPt.z);  // keeping the start point on the XZ plane, Y is the normal
 
     //    log("Initial s = " + ofToString(s));
@@ -441,7 +449,7 @@ void ofApp::draw() {
 
   // highlight selected point (draw sphere around selected point)
   //
-  if (mode == PATH_CREATION_MODE || mode == PATH_EDIT_MODE) {
+  if (mode == PATH_CREATION_MODE || mode == PATH_EDIT_MODE || mode == ANIMATION_BEGIN_SELECTION_MODE) {
     for_each(pathPoints.begin(), pathPoints.end(), [this](ofVec3f p) {
       ofSetColor(255, 0, 0);
       ofNoFill();
@@ -478,6 +486,14 @@ void ofApp::draw() {
     ofSetColor(ofColor::limeGreen);
     ofNoFill();
     ofDrawSphere(selectedPoint, 0.15);
+  }
+
+  if (mode == ANIMATION_BEGIN_SELECTION_MODE) {
+    // The point where the free camera cams[0] will be retargeted to.
+    //
+    ofSetColor(ofColor::white);
+    ofNoFill();
+    ofDrawSphere(aniStartPt, 0.30);
   }
 
   thePath.draw();
@@ -598,6 +614,18 @@ void ofApp::keyPressed(int key) {
       if (bRoverLoaded) {
         roverPos.x -= 0.25;
         rover.setPosition(roverPos.x, roverPos.y, roverPos.z);
+      }
+      break;
+    }
+
+    case 'b': {
+      // Lets the user select any one of the path points
+      // as the starting point for the animation
+      // -- toggleable --
+      //
+      mode = (mode == ANIMATION_BEGIN_SELECTION_MODE) ? NORMAL : ANIMATION_BEGIN_SELECTION_MODE;
+      if (mode == ANIMATION_BEGIN_SELECTION_MODE) {
+        aniSelectedIndex = -1;  // reset the selection index before hand
       }
       break;
     }
@@ -836,6 +864,30 @@ void ofApp::mousePressed(int x, int y, int button) {
       }
     }
 
+    // -- Select the point for beginning the animation
+    //
+    if (mode == ANIMATION_BEGIN_SELECTION_MODE) {
+      auto maybePt = octtreeT->search(ray, -100, 100);  // fetch the point from octtree
+      if (maybePt->isPresent()) {
+        auto pt = maybePt->get();
+        auto loc = find(pathPoints.begin(), pathPoints.end(), pt);
+
+        if (loc != pathPoints.end()) {
+          aniStartPt = pt;
+          aniSelectedIndex = loc - pathPoints.begin();
+          log("Selected start point for animation = " + ofToString(aniStartPt));
+          log("Selected start index for animation = " + ofToString(aniSelectedIndex));
+        }
+      } else {
+        aniStartPt = pathPoints[0];  // path starts from the beginning
+        pct = 0;                     // reset the pct
+        aniSelectedIndex = -1;       // selected point not on path
+        log("Selected start index has been reset.");
+      }
+    }
+
+    // Select the point for camera retargetting
+    //
     if (mode == POINT_SELECTION_MODE) {
       // Select the point for camera retargetting
       //
